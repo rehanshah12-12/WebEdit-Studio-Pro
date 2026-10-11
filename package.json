@@ -1,0 +1,18 @@
+{
+  "name": "webedit-studio-pro-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node.js backend starter for WebEdit Studio Pro",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.0",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0"
+  }
+}
