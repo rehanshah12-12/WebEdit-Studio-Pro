@@ -20,6 +20,17 @@
     return { ok: res.ok, data };
   }
 
+  function saveSession(data) {
+    localStorage.setItem('wes_token', data.access_token);
+    localStorage.setItem('wes_email', data.user.email);
+  }
+
+  // Already logged in? Go straight to dashboard
+  if ((register || login) && localStorage.getItem('wes_token')) {
+    window.location.href = 'dashboard.html';
+    return;
+  }
+
   if (register) {
     register.addEventListener('submit', async e => {
       e.preventDefault();
@@ -31,10 +42,18 @@
 
       show('Please wait...', true);
       try {
-        const { ok, data } = await post('/api/register', { email, password });
-        if (!ok) return show(data.error || 'Registration failed.');
-        show(data.message || 'Account ban gaya. Ab login karein.', true);
-        register.reset();
+        const reg = await post('/api/register', { email, password });
+        if (!reg.ok) return show(reg.data.error || 'Registration failed.');
+
+        // Auto login right after register
+        const log = await post('/api/login', { email, password });
+        if (log.ok) {
+          saveSession(log.data);
+          show('Account ban gaya! Dashboard khul raha hai...', true);
+          setTimeout(() => { window.location.href = 'dashboard.html'; }, 800);
+        } else {
+          show('Account ban gaya. Ab Sign in karein.', true);
+        }
       } catch (err) {
         show('Server se connect nahi ho paya. Dobara try karein.');
       }
@@ -53,8 +72,7 @@
       try {
         const { ok, data } = await post('/api/login', { email, password });
         if (!ok) return show(data.error || 'Login failed.');
-        localStorage.setItem('wes_token', data.access_token);
-        localStorage.setItem('wes_email', data.user.email);
+        saveSession(data);
         show('Login ho gaya!', true);
         setTimeout(() => { window.location.href = 'dashboard.html'; }, 800);
       } catch (err) {
