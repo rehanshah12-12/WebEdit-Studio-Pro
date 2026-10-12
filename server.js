@@ -146,7 +146,8 @@ app.post("/api/orders", requireUser, async (req, res) => {
     return res.status(400).json({ error: "Enter a valid service and order details." });
   }
 
-  const { data, error } = await supabase.from("orders").insert({
+  // CHANGED: uses the logged-in user's client instead of the anonymous one
+  const { data, error } = await userClient(req.token).from("orders").insert({
     user_id: req.user.id, service, details
   }).select("id, service, details, status, created_at").single();
 
@@ -158,7 +159,8 @@ app.post("/api/orders", requireUser, async (req, res) => {
 });
 
 app.get("/api/orders", requireUser, async (req, res) => {
-  const { data, error } = await supabase
+  // CHANGED: uses the logged-in user's client instead of the anonymous one
+  const { data, error } = await userClient(req.token)
     .from("orders")
     .select("id, service, details, status, created_at")
     .eq("user_id", req.user.id)
