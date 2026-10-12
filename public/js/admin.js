@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
   const headers = { Authorization: 'Bearer ' + token };
+  const jsonHeaders = { ...headers, 'Content-Type': 'application/json' };
 
   const style = document.createElement('style');
   style.textContent = 'html,body{max-width:100%;overflow-x:hidden;}';
@@ -15,12 +16,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const root = document.createElement('div');
   root.style.cssText = 'padding:20px 16px;color:#e5e7eb;max-width:900px;margin:0 auto;';
-  const host = document.querySelector('main') || document.body;
-  host.appendChild(root);
+  (document.querySelector('main') || document.body).appendChild(root);
 
-  const info = text => {
-    root.textContent = text;
-  };
+  const info = text => { root.textContent = text; };
   info('Loading...');
 
   async function get(url) {
@@ -55,10 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   ]);
   const contacts = (c && c.data.contacts) || [];
   const orders = (o && o.data.orders) || [];
-
-  const byDate = (a, b) =>
-    new Date(b.created_at || 0) - new Date(a.created_at || 0);
-  contacts.sort(byDate);
+  contacts.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
   root.textContent = '';
 
@@ -89,8 +84,83 @@ document.addEventListener('DOMContentLoaded', async () => {
     return box;
   }
 
+  function mailButton(email, subject) {
+    const a = document.createElement('a');
+    a.href = 'mailto:' + email + (subject ? '?subject=' + encodeURIComponent(subject) : '');
+    a.textContent = 'Reply by email';
+    a.style.cssText =
+      'display:inline-block;margin-top:10px;color:#a3f069;font-weight:700;';
+    return a;
+  }
+
+  const STATUSES = ['pending', 'in progress', 'completed', 'cancelled'];
+
+  function statusBar(order) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;';
+    const items = [];
+
+    const paint = current => items.forEach(({ b, s }) => {
+      const on = s === current;
+      b.style.background = on ? '#a3f069' : 'transparent';
+      b.style.color = on ? '#0b1220' : '#e5e7eb';
+      b.style.borderColor = on ? '#a3f069' : '#374151';
+    });
+
+    STATUSES.forEach(s => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = s;
+      b.style.cssText =
+        'padding:8px 14px;border-radius:999px;border:1px solid #374151;' +
+        'background:transparent;color:#e5e7eb;font-size:.85rem;cursor:pointer;' +
+        'text-transform:capitalize;';
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        try {
+          const res = await fetch(
+            '/api/admin/orders/' + encodeURIComponent(order.id) + '/status',
+            { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ status: s }) }
+          );
+          if (res.ok) {
+            order.status = s;
+            paint(s);
+          } else {
+            alert('Status badal nahi saka.');
+          }
+        } catch (e) {
+          alert('Server se connect nahi ho paya.');
+        }
+        b.disabled = false;
+      });
+      items.push({ b, s });
+      wrap.appendChild(b);
+    });
+
+    paint(order.status || 'pending');
+    return wrap;
+  }
+
   const when = v => (v ? new Date(v).toLocaleString() : '');
 
+  // ---------- Orders first (most important) ----------
+  section('Orders', orders.length);
+  if (orders.length === 0) card([['Abhi koi order nahi hai.']]);
+  orders.forEach(x => {
+    const box = card([
+      [x.service || 'Order', true],
+      [x.user_email ? 'Customer: ' + x.user_email : 'Customer: ' + String(x.user_id || '').slice(0, 8), false, true],
+      [x.details || ''],
+      [when(x.created_at), false, true]
+    ]);
+    box.appendChild(statusBar(x));
+    if (x.user_email) {
+      box.appendChild(document.createElement('br'));
+      box.appendChild(mailButton(x.user_email, 'Your order: ' + (x.service || '')));
+    }
+  });
+
+  // ---------- Contact messages ----------
   section('Customer messages', contacts.length);
   if (contacts.length === 0) card([['Abhi koi message nahi hai.']]);
   contacts.forEach(m => {
@@ -100,25 +170,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       [m.message || ''],
       [when(m.created_at), false, true]
     ]);
-    if (m.email) {
-      const a = document.createElement('a');
-      a.href = 'mailto:' + m.email;
-      a.textContent = 'Reply by email';
-      a.style.cssText =
-        'display:inline-block;margin-top:10px;color:#a3f069;font-weight:700;';
-      box.appendChild(a);
-    }
-  });
-
-  section('Orders', orders.length);
-  if (orders.length === 0) card([['Abhi koi order nahi hai.']]);
-  orders.forEach(x => {
-    card([
-      [x.service || 'Order', true],
-      [x.details || ''],
-      ['Status: ' + (x.status || 'new'), false, true],
-      ['User: ' + String(x.user_id || '').slice(0, 8), false, true],
-      [when(x.created_at), false, true]
-    ]);
+    if (m.email) box.appendChild(mailButton(m.email, 'Re: your message'));
   });
 });
