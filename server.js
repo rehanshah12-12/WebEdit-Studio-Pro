@@ -146,9 +146,12 @@ app.post("/api/orders", requireUser, async (req, res) => {
     return res.status(400).json({ error: "Enter a valid service and order details." });
   }
 
-  // CHANGED: uses the logged-in user's client instead of the anonymous one
+  // CHANGED: customer's email is now saved with the order
   const { data, error } = await userClient(req.token).from("orders").insert({
-    user_id: req.user.id, service, details
+    user_id: req.user.id,
+    user_email: req.user.email,
+    service,
+    details
   }).select("id, service, details, status, created_at").single();
 
   if (error) {
@@ -159,7 +162,6 @@ app.post("/api/orders", requireUser, async (req, res) => {
 });
 
 app.get("/api/orders", requireUser, async (req, res) => {
-  // CHANGED: uses the logged-in user's client instead of the anonymous one
   const { data, error } = await userClient(req.token)
     .from("orders")
     .select("id, service, details, status, created_at")
@@ -193,6 +195,28 @@ app.get("/api/admin/orders", requireUser, requireAdmin, async (req, res) => {
     return res.status(500).json({ error: "Could not load orders." });
   }
   res.json({ orders: data });
+});
+
+// NEW: admin changes the status of an order
+app.post("/api/admin/orders/:id/status", requireUser, requireAdmin, async (req, res) => {
+  const allowed = ["pending", "in progress", "completed", "cancelled"];
+  const status = String(req.body.status || "");
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ error: "Invalid status." });
+  }
+
+  const { data, error } = await req.db
+    .from("orders")
+    .update({ status })
+    .eq("id", req.params.id)
+    .select("id, status")
+    .single();
+
+  if (error) {
+    console.error("Status update failed:", error.message);
+    return res.status(500).json({ error: "Could not update status." });
+  }
+  res.json({ order: data });
 });
 
 app.listen(PORT, () => {
