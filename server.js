@@ -24,6 +24,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false }
 });
 
+// Supabase client that acts as the logged-in user (so database rules apply)
+function userClient(token) {
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: "Bearer " + token } }
+  });
+}
+
 app.use((req, res, next) => {
   if (FRONTEND_ORIGIN) {
     res.setHeader("Access-Control-Allow-Origin", FRONTEND_ORIGIN);
@@ -49,6 +57,17 @@ async function requireUser(req, res, next) {
     return res.status(401).json({ error: "Invalid or expired login session." });
   }
   req.user = data.user;
+  req.token = token;
+  next();
+}
+
+async function requireAdmin(req, res, next) {
+  const db = userClient(req.token);
+  const { data, error } = await db.from("admins").select("email").limit(1);
+  if (error || !data || data.length === 0) {
+    return res.status(403).json({ error: "Admin access required." });
+  }
+  req.db = db;
   next();
 }
 
@@ -146,6 +165,31 @@ app.get("/api/orders", requireUser, async (req, res) => {
     .order("created_at", { ascending: false });
 
   if (error) return res.status(500).json({ error: "Could not load orders." });
+  res.json({ orders: data });
+});
+
+// ---------- Admin routes (only for emails listed in the admins table) ----------
+app.get("/api/admin/check", requireUser, requireAdmin, (_req, res) => {
+  res.json({ ok: true });
+});
+
+app.get("/api/admin/contacts", requireUser, requireAdmin, async (req, res) => {
+  const { data, error } = await req.db
+    .from("contact_requests").select("*").limit(200);
+  if (error) {
+    console.error("Admin contacts failed:", error.message);
+    return res.status(500).json({ error: "Could not load messages." });
+  }
+  res.json({ contacts: data });
+});
+
+app.get("/api/admin/orders", requireUser, requireAdmin, async (req, res) => {
+  const { data, error } = await req.db
+    .from("orders").select("*").order("created_at", { ascending: false }).limit(200);
+  if (error) {
+    console.error("Admin orders failed:", error.message);
+    return res.status(500).json({ error: "Could not load orders." });
+  }
   res.json({ orders: data });
 });
 
