@@ -42,10 +42,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (name) name.textContent = 'Welcome, ' + data.user.email;
     const note = name ? name.nextElementSibling : null;
     if (note && note.tagName === 'P') {
-      note.textContent = 'Yahan se naya order dein aur apne orders dekhein.';
+      note.textContent = 'Place a new order here and track your existing orders.';
     }
   } catch (e) {
-    if (name) name.textContent = 'Server se connect nahi ho paya.';
+    if (name) name.textContent = 'Could not connect to the server.';
     return;
   }
 
@@ -68,18 +68,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ---------- New order form ----------
   const formBox = document.createElement('section');
   formBox.style.cssText = boxCss;
-  formBox.appendChild(h2('Naya order'));
+  formBox.appendChild(h2('New order'));
 
   const form = document.createElement('div');
 
   const l1 = document.createElement('label');
-  l1.textContent = 'Aapko kya chahiye?';
+  l1.textContent = 'What service do you need?';
   const select = document.createElement('select');
   select.style.cssText = fieldCss;
   [
     'Website Development',
     'Photo Editing',
-    'Video Editing',
+    'Video & Reels Editing',
     'Logo / Branding',
     'Other'
   ].forEach(s => {
@@ -94,12 +94,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const details = document.createElement('textarea');
   details.rows = 4;
   details.maxLength = 3000;
-  details.placeholder = 'Apna idea ya requirements likhein...';
+  details.placeholder = 'Tell us about your idea or requirements...';
   details.style.cssText = fieldCss;
 
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.textContent = 'Order bhejein';
+  btn.textContent = 'Submit order';
   btn.style.cssText =
     'padding:14px 22px;border:none;border-radius:14px;background:#a3f069;' +
     'color:#0b1220;font-weight:700;font-size:1rem;cursor:pointer;';
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       list.textContent = '';
 
       if (!data.orders || data.orders.length === 0) {
-        list.textContent = 'Abhi koi order nahi hai.';
+        list.textContent = 'You have no orders yet.';
         return;
       }
 
@@ -153,15 +153,16 @@ document.addEventListener('DOMContentLoaded', async () => {
           item.appendChild(dt);
         }
         const st = document.createElement('div');
-        st.style.cssText = 'font-size:.9rem;opacity:.7;margin-top:6px;';
+        st.style.cssText =
+          'font-size:.9rem;opacity:.7;margin-top:6px;text-transform:capitalize;';
         st.textContent =
-          'Status: ' + (o.status || 'new') + ' · ' +
+          'Status: ' + (o.status || 'pending') + ' · ' +
           new Date(o.created_at).toLocaleDateString();
         item.appendChild(st);
         list.appendChild(item);
       });
     } catch (e) {
-      list.textContent = 'Orders load nahi ho paye.';
+      list.textContent = 'Could not load your orders.';
     }
   }
 
@@ -169,12 +170,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const text = details.value.trim();
     if (text.length < 5) {
       msg.style.color = '#fca5a5';
-      msg.textContent = 'Project details thodi likhein.';
+      msg.textContent = 'Please add a few details about your project.';
       return;
     }
     btn.disabled = true;
     msg.style.color = '#a3f069';
-    msg.textContent = 'Bhej rahe hain...';
+    msg.textContent = 'Sending...';
     try {
       const res = await fetch('/api/orders', {
         method: 'POST',
@@ -185,16 +186,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         msg.style.color = '#fca5a5';
-        msg.textContent = data.error || 'Order nahi gaya. Dobara try karein.';
+        msg.textContent = data.error || 'Could not send your order. Please try again.';
       } else {
         msg.style.color = '#a3f069';
-        msg.textContent = 'Order mil gaya! Hum jaldi aapse rabta karenge.';
+        msg.textContent = 'Order received! We will contact you soon.';
         details.value = '';
         loadOrders();
       }
     } catch (e) {
       msg.style.color = '#fca5a5';
-      msg.textContent = 'Server se connect nahi ho paya.';
+      msg.textContent = 'Could not connect to the server.';
     }
     btn.disabled = false;
   });
