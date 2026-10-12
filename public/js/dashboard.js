@@ -5,6 +5,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  // Mobile fix: long email should wrap, page should not scroll sideways
+  const style = document.createElement('style');
+  style.textContent =
+    'html,body{max-width:100%;overflow-x:hidden;}' +
+    '[data-dashboard-name]{overflow-wrap:anywhere;word-break:break-word;' +
+    'font-size:clamp(1.6rem,7vw,2.6rem);line-height:1.2;}';
+  document.head.appendChild(style);
+
   const headers = { Authorization: 'Bearer ' + token };
   const name = document.querySelector('[data-dashboard-name]');
   const signout = document.querySelector('[data-signout]');
@@ -17,12 +25,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (signout) signout.addEventListener('click', logout);
 
+  // Menu: change "Sign in" to "Logout"
+  document.querySelectorAll('a[href*="login"]').forEach(a => {
+    if (/sign\s*in/i.test(a.textContent)) {
+      a.textContent = 'Logout';
+      a.setAttribute('href', '#');
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        logout();
+      });
+    }
+  });
+
   // Check login session
   try {
     const res = await fetch('/api/me', { headers });
     if (!res.ok) return logout();
     const data = await res.json();
     if (name) name.textContent = 'Welcome, ' + data.user.email;
+    const note = name ? name.nextElementSibling : null;
+    if (note && note.tagName === 'P') {
+      note.textContent = 'Yahan aapke orders aur project updates dikhenge.';
+    }
   } catch (e) {
     if (name) name.textContent = 'Server se connect nahi ho paya.';
     return;
