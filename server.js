@@ -1,12 +1,14 @@
 require("dotenv").config();
 
+const path = require("path");
 const express = require("express");
 const helmet = require("helmet");
 const { createClient } = require("@supabase/supabase-js");
 
 const app = express();
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: "20kb" }));
+app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3000;
 const SUPABASE_URL = process.env.SUPABASE_URL;
