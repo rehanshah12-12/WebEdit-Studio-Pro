@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const waLink = document.querySelector('a[href*="wa.me"], a[href*="whatsapp.com"]');
   if (waLink) {
+    waLink.setAttribute('href', 'https://wa.me/' + WA_NUMBER);
     makeButton(waLink, WA_ICON, 'Chat on WhatsApp', '#25D366', '#062b12', 'none');
     waLink.removeAttribute('target');
   }
@@ -62,14 +63,15 @@ document.addEventListener('DOMContentLoaded', () => {
       `Hello WebEdit Studio!\nName: ${name}\nEmail: ${email}\n` +
       `Service: ${service}\nMessage: ${message}`;
     const link =
-      `https://api.whatsapp.com/send?phone=${WA_NUMBER}&text=${encodeURIComponent(text)}`;
+      `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(text)}`;
 
     if (status) status.textContent = 'Message save ho raha hai...';
 
+    let saved = false;
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 4000);
-      await fetch('/api/contact', {
+      const timer = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -80,18 +82,30 @@ document.addEventListener('DOMContentLoaded', () => {
         signal: controller.signal
       });
       clearTimeout(timer);
+      saved = res.ok;
     } catch (e) {}
 
-    if (status) {
-      status.textContent = 'Message save ho gaya. WhatsApp khul raha hai... ';
-      const a = document.createElement('a');
-      a.href = link;
-      a.textContent = 'Open WhatsApp';
-      a.style.cssText = 'color:#a3f069;font-weight:700;text-decoration:underline;';
-      status.appendChild(a);
-    }
+    if (!status) return;
+    status.textContent = '';
 
-    form.reset();
-    window.location.href = link;
+    const line = document.createElement('div');
+    line.textContent = saved
+      ? 'Aapka message save ho gaya. Ab WhatsApp par bhi bhej dein:'
+      : 'Message save nahi hua. WhatsApp par bhej dein:';
+    line.style.cssText = 'margin-bottom:10px;';
+
+    const btn = document.createElement('a');
+    btn.href = link;
+    btn.innerHTML = WA_ICON;
+    const label = document.createElement('span');
+    label.textContent = 'Open WhatsApp';
+    btn.appendChild(label);
+    btn.style.cssText =
+      'display:flex;align-items:center;justify-content:center;gap:10px;' +
+      'padding:14px 18px;border-radius:14px;font-weight:700;font-size:1rem;' +
+      'text-decoration:none;background:#25D366;color:#062b12;';
+
+    status.append(line, btn);
+    if (saved) form.reset();
   });
 });
