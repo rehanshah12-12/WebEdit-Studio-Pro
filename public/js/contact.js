@@ -3,7 +3,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const status = document.querySelector('[data-contact-status]');
   if (!form) return;
 
-  form.addEventListener('submit', event => {
+  const WA_NUMBER = '923710416136';
+
+  form.addEventListener('submit', async event => {
     event.preventDefault();
     const d = new FormData(form);
     const name = String(d.get('name') || '').trim();
@@ -16,46 +18,44 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Open WhatsApp first (phones block popups opened after waiting)
-    const body =
+    const text =
       `Hello WebEdit Studio!\nName: ${name}\nEmail: ${email}\n` +
       `Service: ${service}\nMessage: ${message}`;
-    window.open(
-      `https://wa.me/923710416136?text=${encodeURIComponent(body)}`,
-      '_blank',
-      'noopener'
-    );
+    const waLink =
+      `https://api.whatsapp.com/send?phone=${WA_NUMBER}&text=${encodeURIComponent(text)}`;
 
     if (status) status.textContent = 'Message save ho raha hai...';
 
-    // Save the same message in the database
-    fetch('/api/contact', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        email,
-        message: service ? `[Service: ${service}]\n${message}` : message
-      })
-    })
-      .then(res => res.json().catch(() => ({})).then(data => ({ ok: res.ok, data })))
-      .then(({ ok, data }) => {
-        if (!status) return;
-        if (ok) {
-          status.textContent =
-            'Message save ho gaya. WhatsApp mein bhi bhej dena.';
-          form.reset();
-        } else {
-          status.textContent =
-            (data.error || 'Message save nahi hua.') +
-            ' WhatsApp se bhej sakte hain.';
-        }
-      })
-      .catch(() => {
-        if (status) {
-          status.textContent =
-            'Server se connect nahi hua. WhatsApp se bhej sakte hain.';
-        }
+    // Save in database (max 4 seconds wait)
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          email,
+          message: service ? `[Service: ${service}]\n${message}` : message
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timer);
+    } catch (e) {
+      // Even if saving fails, still open WhatsApp
+    }
+
+    // Fallback button, in case the automatic open is blocked
+    if (status) {
+      status.textContent = 'Message save ho gaya. WhatsApp khul raha hai... ';
+      const a = document.createElement('a');
+      a.href = waLink;
+      a.textContent = 'Open WhatsApp';
+      a.style.cssText = 'color:#a3f069;font-weight:700;text-decoration:underline;';
+      status.appendChild(a);
+    }
+
+    form.reset();
+    window.location.href = waLink;
   });
 });
