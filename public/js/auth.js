@@ -1,4 +1,11 @@
 (() => {
+  // Remove the old "Demo only..." notice from the page
+  document.querySelectorAll('p, small, span, div, li').forEach(el => {
+    if (el.children.length === 0 && /demo only/i.test(el.textContent)) {
+      el.remove();
+    }
+  });
+
   const register = document.querySelector('[data-register-form]');
   const login = document.querySelector('[data-login-form]');
   const message = document.querySelector('[data-auth-message]');
@@ -37,8 +44,8 @@
       const d = new FormData(register);
       const email = String(d.get('email') || '').trim();
       const password = String(d.get('password') || '');
-      if (password.length < 8) return show('Password kam az kam 8 characters ka rakhein.');
-      if (password !== d.get('confirmPassword')) return show('Dono passwords match nahi karte.');
+      if (password.length < 8) return show('Password must be at least 8 characters.');
+      if (password !== d.get('confirmPassword')) return show('Passwords do not match.');
 
       show('Please wait...', true);
       try {
@@ -49,13 +56,13 @@
         const log = await post('/api/login', { email, password });
         if (log.ok) {
           saveSession(log.data);
-          show('Account ban gaya! Dashboard khul raha hai...', true);
+          show('Account created! Opening your dashboard...', true);
           setTimeout(() => { window.location.href = 'dashboard.html'; }, 800);
         } else {
-          show('Account ban gaya. Ab Sign in karein.', true);
+          show('Account created. Please sign in.', true);
         }
       } catch (err) {
-        show('Server se connect nahi ho paya. Dobara try karein.');
+        show('Could not connect to the server. Please try again.');
       }
     });
   }
@@ -66,17 +73,17 @@
       const d = new FormData(login);
       const email = String(d.get('email') || '').trim();
       const password = String(d.get('password') || '');
-      if (!email || !password) return show('Email aur password daalein.');
+      if (!email || !password) return show('Please enter your email and password.');
 
       show('Please wait...', true);
       try {
         const { ok, data } = await post('/api/login', { email, password });
         if (!ok) return show(data.error || 'Login failed.');
         saveSession(data);
-        show('Login ho gaya!', true);
+        show('Signed in!', true);
         setTimeout(() => { window.location.href = 'dashboard.html'; }, 800);
       } catch (err) {
-        show('Server se connect nahi ho paya. Dobara try karein.');
+        show('Could not connect to the server. Please try again.');
       }
     });
   }
