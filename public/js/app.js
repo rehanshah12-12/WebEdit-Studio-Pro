@@ -4,6 +4,20 @@
       ? document.addEventListener('DOMContentLoaded', fn)
       : fn();
 
+  // ---------- Mobile fit: stop sideways scrolling / zoom-out ----------
+  if (!document.querySelector('meta[name="viewport"]')) {
+    const m = document.createElement('meta');
+    m.name = 'viewport';
+    m.content = 'width=device-width, initial-scale=1';
+    document.head.appendChild(m);
+  }
+  const fit = document.createElement('style');
+  fit.textContent =
+    'html,body{max-width:100%;overflow-x:hidden;}' +
+    'img,video,svg,iframe{max-width:100%;}' +
+    'h1,h2,h3,p,a{overflow-wrap:anywhere;}';
+  document.head.appendChild(fit);
+
   ready(() => {
     // ---------- Mobile menu ----------
     const toggle = document.querySelector('.menu-toggle');
@@ -31,7 +45,6 @@
       document.querySelectorAll('a[href*="login"]').forEach(link => {
         if (!/sign\s*in/i.test(link.textContent)) return;
 
-        // Logout button (same look as the old Sign in button)
         const logoutLink = link.cloneNode(true);
         logoutLink.textContent = 'Logout';
         logoutLink.setAttribute('href', '#');
@@ -44,10 +57,8 @@
           window.location.href = 'index.html';
         });
 
-        // Old Sign in link becomes Dashboard
         link.textContent = 'Dashboard';
         link.setAttribute('href', 'dashboard.html');
-
         link.insertAdjacentElement('afterend', logoutLink);
       });
     }
