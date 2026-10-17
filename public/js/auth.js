@@ -1,4 +1,4 @@
-(() => {
+(async () => {
   // Remove old demo / preview notices from the page
   document.querySelectorAll('p, small, span, div, li').forEach(el => {
     if (el.children.length === 0 &&
@@ -33,22 +33,46 @@
     localStorage.setItem('wes_email', data.user.email);
   }
 
+  // Coming back from the verification email: sign the user in automatically
+  async function handleVerifyLink() {
+    const raw = (location.hash || '').replace(/^#/, '');
+    if (!raw) return false;
+    const params = new URLSearchParams(raw);
+
+    if (params.get('error') || params.get('error_code')) {
+      history.replaceState(null, '', location.pathname);
+      show('This verification link has expired. Register again to get a new one.');
+      return false;
+    }
+
+    const token = params.get('access_token');
+    if (!token) return false;
+    history.replaceState(null, '', location.pathname);
+    show('Email verified! Signing you in...', true);
+
+    try {
+      const res = await fetch('/api/me', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.user) {
+        localStorage.setItem('wes_token', token);
+        localStorage.setItem('wes_email', data.user.email);
+        setTimeout(() => { window.location.href = 'dashboard.html'; }, 600);
+        return true;
+      }
+    } catch (e) {}
+
+    show('Email verified! Please sign in.', true);
+    return false;
+  }
+
+  if (await handleVerifyLink()) return;
+
   // Already logged in? Go straight to dashboard
   if ((register || login) && localStorage.getItem('wes_token')) {
     window.location.href = 'dashboard.html';
     return;
-  }
-
-  // Coming back from the verification email link
-  if (login) {
-    const h = location.hash || '';
-    if (/type=signup/.test(h) || /access_token=/.test(h)) {
-      show('Email verified! You can sign in now.', true);
-      history.replaceState(null, '', location.pathname);
-    } else if (/error_code=otp_expired|error=access_denied/.test(h)) {
-      show('This verification link has expired. Register again with the same email to get a new one.');
-      history.replaceState(null, '', location.pathname);
-    }
   }
 
   function showCheckEmail(email) {
@@ -74,14 +98,8 @@
 
     const p2 = document.createElement('p');
     p2.textContent =
-      'Open the link in that email, then sign in. If you do not see it, check your Spam folder.';
+      'Open the link in that email to finish signing up. You will be signed in automatically.';
     p2.style.cssText = 'margin:0 0 18px;opacity:.75;font-size:.92rem;';
-
-    const go = document.createElement('a');
-    go.href = 'login.html';
-    go.textContent = 'Go to Sign in';
-    go.className = 'btn btn-primary';
-    go.style.cssText = 'display:inline-flex;margin:0 6px 8px;';
 
     const again = document.createElement('button');
     again.type = 'button';
@@ -94,7 +112,7 @@
       register.style.display = '';
     };
 
-    box.append(icon, h, p1, p2, go, again);
+    box.append(icon, h, p1, p2, again);
     register.insertAdjacentElement('afterend', box);
   }
 
@@ -112,7 +130,7 @@
         const reg = await post('/api/register', { email, password });
         if (!reg.ok) return show(reg.data.error || 'Registration failed.');
 
-        // If email verification is OFF, this logs in directly.
+        // If email verification is OFF this logs in directly.
         // If it is ON, login is refused until the email is verified.
         const log = await post('/api/login', { email, password });
         if (log.ok) {
@@ -144,7 +162,7 @@
           const err = data.error || 'Login failed.';
           return show(
             /incorrect/i.test(err)
-              ? err + ' If you just registered, verify your email first (check Spam too).'
+              ? err + ' If you just registered, please verify your email first.'
               : err
           );
         }
