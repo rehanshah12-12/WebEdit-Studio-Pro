@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const helmet = require("helmet");
@@ -8,7 +9,30 @@ const { createClient } = require("@supabase/supabase-js");
 const app = express();
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: "20kb" }));
-app.use(express.static(path.join(__dirname, "public")));
+
+// Put a correct mobile viewport into every HTML page before it is sent
+const PUBLIC_DIR = path.join(__dirname, "public");
+const MOBILE_HEAD =
+  '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+  "<style>html,body{max-width:100%;overflow-x:hidden}</style>";
+
+app.use((req, res, next) => {
+  if (req.method !== "GET") return next();
+  let p = req.path === "/" ? "/index.html" : req.path;
+  if (!p.endsWith(".html")) return next();
+
+  const file = path.join(PUBLIC_DIR, path.normalize(p));
+  if (!file.startsWith(PUBLIC_DIR)) return next();
+
+  fs.readFile(file, "utf8", (err, html) => {
+    if (err) return next();
+    html = html.replace(/<meta[^>]*name=["']viewport["'][^>]*>/gi, "");
+    html = html.replace(/<head[^>]*>/i, m => m + MOBILE_HEAD);
+    res.type("html").send(html);
+  });
+});
+
+app.use(express.static(PUBLIC_DIR));
 
 const PORT = process.env.PORT || 3000;
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -75,6 +99,7 @@ app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "WebEdit Studio Pro API" });
 });
 
+// CHANGED: detects an email that is already registered
 app.post("/api/register", async (req, res) => {
   const email = String(req.body.email || "").trim().toLowerCase();
   const password = String(req.body.password || "");
@@ -86,15 +111,28 @@ app.post("/api/register", async (req, res) => {
     return res.status(400).json({ error: "Password must be at least 8 characters." });
   }
 
+  const ALREADY = "This email is already registered. Please sign in.";
+
   const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) return res.status(400).json({ error: error.message });
+  if (error) {
+    if (/already registered|already exists/i.test(error.message || "")) {
+      return res.status(409).json({ error: ALREADY });
+    }
+    return res.status(400).json({ error: error.message });
+  }
+
+  // Supabase returns an empty identities list for an already existing email
+  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    return res.status(409).json({ error: ALREADY });
+  }
 
   res.status(201).json({
-    message: "Registration submitted. Check your email if confirmation is enabled.",
+    message: "Registration submitted. Please verify your email.",
     user: data.user ? { id: data.user.id, email: data.user.email } : null
   });
 });
 
+// CHANGED: clearer message when the email is not verified yet
 app.post("/api/login", async (req, res) => {
   const email = String(req.body.email || "").trim().toLowerCase();
   const password = String(req.body.password || "");
@@ -103,7 +141,14 @@ app.post("/api/login", async (req, res) => {
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return res.status(401).json({ error: "Email or password is incorrect." });
+  if (error) {
+    const unconfirmed = /not confirmed/i.test(error.message || "");
+    return res.status(401).json({
+      error: unconfirmed
+        ? "Please verify your email first. Open the link we sent to your inbox."
+        : "Email or password is incorrect."
+    });
+  }
 
   res.json({
     message: "Login successful.",
@@ -146,7 +191,6 @@ app.post("/api/orders", requireUser, async (req, res) => {
     return res.status(400).json({ error: "Enter a valid service and order details." });
   }
 
-  // CHANGED: customer's email is now saved with the order
   const { data, error } = await userClient(req.token).from("orders").insert({
     user_id: req.user.id,
     user_email: req.user.email,
@@ -197,7 +241,6 @@ app.get("/api/admin/orders", requireUser, requireAdmin, async (req, res) => {
   res.json({ orders: data });
 });
 
-// NEW: admin changes the status of an order
 app.post("/api/admin/orders/:id/status", requireUser, requireAdmin, async (req, res) => {
   const allowed = ["pending", "in progress", "completed", "cancelled"];
   const status = String(req.body.status || "");
